@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Little Laura's Adventure</title>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #2c3e50;
+            font-family: 'Arial', sans-serif;
+            color: #ecf0f1;
+            overflow: hidden;
+        }
+        #gameCanvas {
+            border: 3px solid #3498db;
+            background-color: #8B4513;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(52, 152, 219, 0.5);
+            display: none;
+        }
+        .instructions {
+            margin-top: 15px;
+            padding: 10px 15px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.9em;
+            display: none;
+        }
+        .instructions strong { color: #3498db; }
+        #startMenu {
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            width: 100%; height: 100%; position: absolute; top: 0; left: 0;
+            background-color: rgba(44, 62, 80, 0.95);
+            z-index: 10;
+        }
+        #startMenu h1 {
+            font-family: 'Dancing Script', cursive; font-size: 4em;
+            color: #e74c3c; text-shadow: 2px 2px 4px #000000; margin-bottom: 40px;
+        }
+        #startGameButton {
+            font-family: 'Arial', sans-serif; font-size: 1.5em; padding: 15px 30px;
+            background-color: #3498db; color: white; border: none; border-radius: 8px;
+            cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+        #startGameButton:hover { background-color: #2980b9; }
+        #startGameButton:active { transform: translateY(2px); box-shadow: 0 2px 3px rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body>
+
+<div id="startMenu">
+    <h1>Little Laura's Adventure</h1>
+    <button id="startGameButton">Start Game</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+<div id="instructionsDiv" class="instructions">
+    Use <strong>W, A, S, D</strong> or <strong>Arrow Keys</strong> to move the character.
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startMenu = document.getElementById('startMenu');
+    const startGameButton = document.getElementById('startGameButton');
+    const instructionsDiv = document.getElementById('instructionsDiv');
+
+    const GAME_STATE = {
+        START_MENU: 'start_menu', OUTSIDE_BARN: 'outside_barn',
+        FADING_TO_CORRIDOR: 'fading_to_corridor', INSIDE_BARN_CORRIDOR: 'inside_barn_corridor',
+        FADING_TO_OUTSIDE: 'fading_to_outside',
+        CLIMBING_LADDER: 'climbing_ladder',
+        FADING_TO_LOFT: 'fading_to_loft', BARN_LOFT: 'barn_loft',
+        FADING_TO_PLATFORM_1: 'fading_to_platform_1', INSIDE_BARN_PLATFORM_1: 'inside_barn_platform_1',
+        FADING_TO_PLATFORM_2: 'fading_to_platform_2', INSIDE_BARN_PLATFORM_2: 'inside_barn_platform_2',
+        FADING_TO_PLATFORM_3: 'fading_to_platform_3', INSIDE_BARN_PLATFORM_3: 'inside_barn_platform_3',
+        FADING_FROM_PLATFORM_TO_LADDER: 'fading_from_platform_to_ladder',
+    };
+    let currentGameState = GAME_STATE.START_MENU;
+    let fadeAlpha = 0; const fadeSpeed = 0.02;
+    let previousStateBeforeFade = null;
+
+    const gameFieldColor = '#8B4513';
+    let playerX = 100;
+    let playerY = 100;
+    let playerWorldX = 100;
+    let playerWorldY_Ladder = 0;
+    const moveSpeed = 4;
+    const climbSpeed = 3;
+    let spriteFacingLeft = false;
+    let isFacingBack = false;
+    const pixelSize = 7;
+
+    // Player Sprite Data (condensed)
+    const frontIdle_Neutral = [ "_____HHHH_____",    "____HSSSSHH____",   "___HSSESSEHH___",   "___HSSSSSSHH___", "__HHHSSSSHHH__",  "_____HSSHH_____",   "__CCCCCCCCCC__",  "__CCCDDCCC__", "__DDDDDDDDDD__",  "___DDDDDDDD___",  "____DDDDDD____",  "____DDDDDD____", "___DDDDDDDD___",  "__DDDDDDDDDD__",  "_DDDDDDDDDDDD_",  "_DDDDDDDDDDDD_", "__DDDDDDDDDD__",  "___SSS_SSS____",  "___SSS_SSS____", ];
+    const frontIdle_ShouldersUp = [ "_____HHHH_____",    "____HSSSSHH____",   "___HSSESSEHH___",   "___HSSSSSSHH___", "__HHHSSSSHHH__",  "___HHHSSHHH___",   "__CCCCCCCCCC__",  "__CCCDDCCC__", "__DDDDDDDDDD__",  "___DDDDDDDD___",  "____DDDDDD____",  "____DDDDDD____", "___DDDDDDDD___",  "__DDDDDDDDDD__",  "_DDDDDDDDDDDD_",  "_DDDDDDDDDDDD_", "__DDDDDDDDDD__",  "___SSS_SSS____",  "___SSS_SSS____", ];
+    const frontIdle_HeadHairUp = [ "______________",    "_____HHHH_____",    "____HSSSSHH____",   "___HSSESSEHH___", "___HSSSSSSHH___",   "__HHHSSSSHHH__",  "_____HSSHH_____",   "__CCCCCCCCCC__", "__CCCDDCCC__",  "__DDDDDDDDDD__",  "___DDDDDDDD___",  "____DDDDDD____", "____DDDDDD____",  "___DDDDDDDD___",  "__DDDDDDDDDD__",  "_DDDDDDDDDDDD_", "_DDDDDDDDDDDD_",  "__DDDDDDDDDD__",  "___SSS_SSS____", ];
+    const frontIdle_WaistUp_PeakInhale = [ "______________",    "_____HHHH_____",    "____HSSSSHH____",   "___HSSESSEHH___", "___HSSSSSSHH___",   "__HHHSSSSHHH__",  "_____HSSHH_____",   "__CCCDDCCC__", "__DDDDDDDDDD__",  "___DDDDDDDD___",  "____DDDDDD____",  "____DDDDDD____", "___DDDDDDDD___",  "__DDDDDDDDDD__",  "_DDDDDDDDDDDD_",  "_DDDDDDDDDDDD_", "__DDDDDDDDDD__",  "___SSS_SSS____",  "___SSS_SSS____", ];
+    const frontIdleFrames = [ frontIdle_Neutral, frontIdle_ShouldersUp, frontIdle_HeadHairUp, frontIdle_WaistUp_PeakInhale ];
+    const idleAnimationSequence = [0, 1, 2, 3, 2, 1];
+    let currentIdleFrameIndexInSequence = 0;
+    const backBaseBodyData = [ "___HHHHHHHH___",  "__HHHHHHHHHH__", "_HHHHHHHHHHHH_", "_HHHHHHHHHHHH_", "_HHHHHHHHHHHH_", "__HHHHHHHHHH__", "__HHHHHHHHHH__", "___HHHHHHHH___", "___HHHHHHHH___", "___HHHHHHHH___", "____HHHHHH____", "____H_HH_H____", "_____H__H_____", "___DDDDDDDD___", "__DDDDDDDDDD__", "_DDDDDDDDDDDD_", "_DDDDDDDDDDDD_", "__DDDDDDDDDD__", "___SSS_SSS____", ];
+    const backIdle_Neutral = backBaseBodyData;
+    const backIdle_ShouldersUp = backBaseBodyData;
+    const backIdle_HeadHairUp = backBaseBodyData;
+    const backIdle_WaistUp_PeakInhale = backBaseBodyData;
+    const backIdleFrames = [ backIdle_Neutral, backIdle_ShouldersUp, backIdle_HeadHairUp, backIdle_WaistUp_PeakInhale ];
+    const footPart = "FFF"; const emptyPart = "___";
+    const footStates = { normal: [footPart, footPart, emptyPart], short:  [footPart, emptyPart, emptyPart], long:   [footPart, footPart, footPart] };
+    let currentLeftFoot = footStates.normal; let currentRightFoot = footStates.normal;
+    let currentSpriteData = [];
+    const spriteColors = {
+        'H': '#000000', 'S': '#FFF0F0', 'E': '#4A90E2', 'C': '#FFFFFF',
+        'D': '#D32F2F', 'F': '#E0E0E0', '_': null, 'L': '#FF80AB',
+        'P': '#E5E4E2',
+        'N': '#A0522D',
+        'B_SHOE': '#1C1C1C'
+    };
+    const bodyDataLength = frontIdle_Neutral.length;
+    const playerSpritePixelWidth = frontIdle_Neutral[0].length;
+    const playerSpritePixelHeight = bodyDataLength + 3;
+    const playerDrawWidth = playerSpritePixelWidth * pixelSize;
+    const playerDrawHeight = playerSpritePixelHeight * pixelSize;
+
+    // Sunflower Data (condensed)
+    const sunflowerIdle_Neutral = [ "_YYYYYYYYY_", "_Y_YBBBBBY_Y_", "YY_BBBBBBBYY", "YBBBBBBBBBY", "YY_BBBBBBBYY", "_Y_YBBBBBY_Y_", "_YYYYYYYYY_", "____GGG____", "____GGG____","___GGGGG___", "__GG_GGG___", "____GGG____","____GGG____","____GGG____","___GGGGG___", "__GG_GGG___","____GGG____","____GGG____","____GGG____", ];
+    const sunflowerIdle_Nod1 = [ "_____________", "_YYYYYYYYY_", "_Y_YBBBBBY_Y_", "YY_BBBBBBBYY", "YBBBBBBBBBY", "YY_BBBBBBBYY", "_Y_YBBBBBY_Y_", "____GGG____", "____GGG____","___GGGGG___", "__GG_GGG___", "____GGG____","____GGG____","____GGG____","___GGGGG___", "__GG_GGG___","____GGG____","____GGG____","____GGG____", ];
+    const sunflowerIdle_Nod2_Peak = [ "_____________", "_____________", "_YYYYYYYYY_", "_Y_YBBBBBY_Y_", "YY_BBBBBBBYY", "YBBBBBBBBBY", "YY_BBBBBBBYY", "____GGG____", "____GGG____","___GGGGG___", "__GG_GGG___", "____GGG____","____GGG____","____GGG____","___GGGGG___", "__GG_GGG___","____GGG____","____GGG____","____GGG____", ];
+    const sunflowerIdleFrames = [sunflowerIdle_Neutral, sunflowerIdle_Nod1, sunflowerIdle_Nod2_Peak];
+    const sunflowerIdleAnimationSequence = [0, 1, 2, 1];
+    const sunflowerIdleFrameDelay = 45;
+    const sunflowerColors = { 'Y': '#FFEB3B', 'B': '#795548', 'G': '#4CAF50', '_': null };
+    const sunflowerPixelWidth = sunflowerIdle_Neutral[0].length;
+    const sunflowerPixelHeight = sunflowerIdle_Neutral.length;
+    const sunflowerDrawWidth = sunflowerPixelWidth * pixelSize;
+    const sunflowerDrawHeight = sunflowerPixelHeight * pixelSize;
+    const sunflowers = [];
+
+    // Barn Data (condensed)
+    const barnWidthInBarnPixels = 60; const entrywayWidth = 10; const wallSectionWidth = (barnWidthInBarnPixels - entrywayWidth) / 2;
+    const w_barn = 'W'; const v_barn = 'V'; const r_barn = 'R'; const x_barn = 'X'; const b_barn = 'B'; const _barn = '_';
+    function texturedWall(width,c1=w_barn,c2=v_barn){let s="";for(let i=0;i<width;i++)s+=(i%2===0)?c1:c2;return s;}
+    const barnPixelArtData = [ _barn.repeat(Math.floor(barnWidthInBarnPixels*0.1))+r_barn.repeat(Math.ceil(barnWidthInBarnPixels*0.8))+_barn.repeat(Math.floor(barnWidthInBarnPixels*0.1)), _barn.repeat(Math.floor(barnWidthInBarnPixels*0.05))+r_barn.repeat(Math.ceil(barnWidthInBarnPixels*0.9))+_barn.repeat(Math.floor(barnWidthInBarnPixels*0.05)), r_barn.repeat(barnWidthInBarnPixels),r_barn.repeat(barnWidthInBarnPixels), b_barn+texturedWall(wallSectionWidth-2)+b_barn+_barn.repeat(entrywayWidth)+b_barn+texturedWall(wallSectionWidth-2)+b_barn, w_barn+b_barn+texturedWall(wallSectionWidth-3)+b_barn+w_barn+_barn.repeat(entrywayWidth)+w_barn+b_barn+texturedWall(wallSectionWidth-3)+b_barn+w_barn, v_barn+w_barn+b_barn+texturedWall(wallSectionWidth-4)+b_barn+v_barn+w_barn+x_barn.repeat(entrywayWidth)+v_barn+w_barn+b_barn+texturedWall(wallSectionWidth-4)+b_barn+v_barn+w_barn, w_barn+v_barn+w_barn+b_barn+texturedWall(wallSectionWidth-5)+b_barn+w_barn+v_barn+x_barn.repeat(entrywayWidth)+w_barn+v_barn+b_barn+texturedWall(wallSectionWidth-5)+b_barn+w_barn+v_barn, v_barn+w_barn+v_barn+w_barn+b_barn+texturedWall(wallSectionWidth-6)+b_barn+v_barn+w_barn+x_barn.repeat(entrywayWidth)+v_barn+w_barn+b_barn+texturedWall(wallSectionWidth-6)+b_barn+v_barn+w_barn+v_barn, w_barn+v_barn+w_barn+v_barn+w_barn+b_barn+texturedWall(wallSectionWidth-7)+b_barn+w_barn+v_barn+x_barn.repeat(entrywayWidth)+w_barn+v_barn+b_barn+texturedWall(wallSectionWidth-7)+b_barn+w_barn+v_barn+w_barn, v_barn+w_barn+v_barn+w_barn+v_barn+w_barn+texturedWall(wallSectionWidth-6)+w_barn+v_barn+x_barn.repeat(entrywayWidth)+w_barn+v_barn+texturedWall(wallSectionWidth-6)+w_barn+v_barn+w_barn+v_barn, texturedWall(wallSectionWidth)+x_barn.repeat(entrywayWidth)+texturedWall(wallSectionWidth), texturedWall(wallSectionWidth)+x_barn.repeat(entrywayWidth)+texturedWall(wallSectionWidth), texturedWall(wallSectionWidth)+x_barn.repeat(entrywayWidth)+texturedWall(wallSectionWidth), texturedWall(wallSectionWidth)+x_barn.repeat(entrywayWidth)+texturedWall(wallSectionWidth), ];
+    const barnColors = { 'W': '#A0522D', 'V': '#8B4513', 'R': '#654321', 'X': '#1C1C1C', 'B': '#5D4037', '_': null };
+    const currentBarnData = barnPixelArtData;
+    const barnPixelWidthActual = currentBarnData[0].length;
+    const barnPixelHeight = currentBarnData.length;
+    const barnDrawWidth = barnPixelWidthActual * pixelSize;
+    const barnDrawHeight = barnPixelHeight * pixelSize;
+    const barnX = (600 - barnDrawWidth) / 2;
+    const barnY = 20;
+    const barnDoorRect = { x: barnX + (wallSectionWidth * pixelSize), y: barnY + (6 * pixelSize), width: entrywayWidth * pixelSize, height: (barnPixelHeight - 6) * pixelSize };
+    const barnSolidRect = {x: barnX, y: barnY, width: barnDrawWidth, height: barnDoorRect.y - barnY + (pixelSize * 0.5) };
+
+    // --- Corridor & Ladder Definition ---
+    const corridorColor = '#4A3B31';
+    const CORRIDOR_LENGTH = canvas.width * 4;
+    const LADDER_HEIGHT = CORRIDOR_LENGTH * 4;
+    const CAMERA_SCROLL_MARGIN_X = canvas.width / 3;
+    const CAMERA_SCROLL_MARGIN_Y = canvas.height / 3;
+    let cameraX = 0;
+    let cameraY = 0;
+
+    const corridorObjectPixelData = { 'P':["V","W","V","W","V","W","V","W","V","W","V","W","V","W","V"],'C':["__VVV__","_VWVWV_","VVVWVWV","VWVWVWV","VVVWVWV","_VWVWV_","__VVV__"]};
+    const corridorObjectColors = { 'V': '#6A4C3A', 'W': '#8B5A2B', '_': null };
+    const corridorObjects = [];
+    let corridorExitRect = { x: 10, y: 0, width: playerDrawWidth * 1.5, height: playerDrawHeight};
+    let corridorLadderRect = { x: CORRIDOR_LENGTH - (playerDrawWidth * 1.5) - 10, y: 0, width: playerDrawWidth, height: playerDrawHeight};
+    const LADDER_PIXEL_WIDTH = 3;
+    const LADDER_RUNG_COLOR = '#7A5230';
+    const LADDER_SIDE_COLOR = '#6A4C3A';
+    const LADDER_TOP_Y_FOR_LOFT_TRANSITION = 20;
+
+    // --- Platform Definitions ---
+    const PLATFORM_Y_SPACING_FACTOR = 0.25;
+    const platformLevels = [
+        { worldY: Math.floor(LADDER_HEIGHT * PLATFORM_Y_SPACING_FACTOR), enterState: GAME_STATE.FADING_TO_PLATFORM_1, sceneState: GAME_STATE.INSIDE_BARN_PLATFORM_1, platformVisualHeight: 3 * pixelSize, returnLadderRect: { x: CORRIDOR_LENGTH - 60, y:0, width: 60, height: canvas.height} },
+        { worldY: Math.floor(LADDER_HEIGHT * (PLATFORM_Y_SPACING_FACTOR * 2)), enterState: GAME_STATE.FADING_TO_PLATFORM_2, sceneState: GAME_STATE.INSIDE_BARN_PLATFORM_2, platformVisualHeight: 3 * pixelSize, returnLadderRect: { x: CORRIDOR_LENGTH - 60, y:0, width: 60, height: canvas.height} },
+        { worldY: Math.floor(LADDER_HEIGHT * (PLATFORM_Y_SPACING_FACTOR * 3)), enterState: GAME_STATE.FADING_TO_PLATFORM_3, sceneState: GAME_STATE.INSIDE_BARN_PLATFORM_3, platformVisualHeight: 3 * pixelSize, returnLadderRect: { x: CORRIDOR_LENGTH - 60, y:0, width: 60, height: canvas.height} }
+    ];
+    const PLATFORM_CORRIDOR_COLOR = '#504038';
+
+    // --- Barn Loft Definition ---
+    const loftColor = '#705446';
+    const windowPixelData = [ "__FFFFFFFF__", "_FGGGGGGGGFF_", "FGGGGGFGGGGFF", "FGGGGGFGGGGHF", "FGGGGGFGGGGGGFF", "FFFFFFFFFFFFFFF", "FGGGGGFGGGGGGFF", "FGGGGGFGGGGGHF", "FGGGGGFGGGGFF", "_FGGGGGGGGFF_", "__FFFFFFFF__", ];
+    const windowColors = { 'G': '#4A90E2', 'F': '#8B4513', 'H': '#A0522D', '_': null };
+    const windowPixelWidth = windowPixelData[0].length;
+    const windowPixelHeight = windowPixelData.length;
+    const windowDrawWidth = windowPixelWidth * pixelSize;
+    const windowDrawHeight = windowPixelHeight * pixelSize;
+    const windowX = (600 - windowDrawWidth) / 2;
+    const windowY = 30;
+    let loftLadderDownRect = { x: 0, y: 0, width: 0, height: 0 };
+
+    // --- Boy Character Definition ---
+    const boy_idle_neutral = [
+        "___PPPP___",
+        "__PPSSPP__",
+        "_PPSSESSPP_",
+        "_PPSSSSPP_", // Face symmetrical, no nose protrusion
+        "__PPSSPP__",
+        "___CSSC___",
+        "__CCCCCC__",
+        "__CNNNNC__",
+        "__CNNNNC__",
+        "__NNNNNN__",
+        "__NNNNNN__",
+        "__NNNNNN__",
+        "_B_SHB_SHOE_",
+        "_B_SHB_SHOE_"
+    ];
+    const boy_idle_bob_up = [
+        "____________",
+        "___PPPP___",
+        "__PPSSPP__",
+        "_PPSSESSPP_",
+        "_PPSSSSPP_",
+        "__PPSSPP__",
+        "___CSSC___",
+        "__CCCCCC__",
+        "__CNNNNC__",
+        "__CNNNNC__",
+        "__NNNNNN__",
+        "__NNNNNN__",
+        "__NNNNNN__",
+        "_B_SHB_SHOE_"
+    ];
+
+    const boyIdleFrames = [boy_idle_neutral, boy_idle_bob_up];
+    const boyIdleAnimationSequence = [0, 1, 1, 0, 0, 0, 0, 0];
+    let boyCurrentIdleFrameIndex = 0;
+    let boyIdleTimer = 0;
+    const boyIdleFrameDelay = 40;
+
+    const boyPixelArtWidth = boy_idle_neutral[0].length;
+    const boyPixelArtHeight = boy_idle_neutral.length;
+    const boyDrawWidth = boyPixelArtWidth * pixelSize;
+    const boyDrawHeight = boyPixelArtHeight * pixelSize;
+    let boyX = canvas.width - boyDrawWidth - 20;
+    let boyY = canvas.height - boyDrawHeight - 10;
+    let currentBoySpriteData = boyIdleFrames[0];
+
+
+    canvas.width = 600; canvas.height = 450;
+
+    let isMoving = false;
+    let currentWalkCycleStep = 0;
+    let walkAnimationTimer = 0;
+    const walkAnimationDelay = 25;
+    let idleTimer = 0;
+    const idleFrameDelay = 35;
+    let timeSinceLastMove = 0;
+    const IDLE_ANIMATION_START_THRESHOLD = 45;
+    let gameRunning = false;
+    const keysPressed = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
+
+    function checkCollision(rect1, rect2) { /* ... same ... */ return rect1.x < rect2.x + rect2.width -1 && rect1.x + rect1.width > rect2.x + 1 && rect1.y < rect2.y + rect2.height -1 && rect1.y + rect1.height > rect2.y + 1; }
+
+    function assembleLauraSpriteData() {
+        let bodyDataToUse;
+        if (isFacingBack) {
+            if (!isMoving && timeSinceLastMove >= IDLE_ANIMATION_START_THRESHOLD && currentGameState !== GAME_STATE.CLIMBING_LADDER) {
+                const frameIndex = idleAnimationSequence[currentIdleFrameIndexInSequence];
+                bodyDataToUse = backIdleFrames[frameIndex];
+            } else { bodyDataToUse = backIdleFrames[0]; }
+        } else {
+            if (!isMoving && timeSinceLastMove >= IDLE_ANIMATION_START_THRESHOLD) {
+                const frameIndex = idleAnimationSequence[currentIdleFrameIndexInSequence];
+                bodyDataToUse = frontIdleFrames[frameIndex];
+            } else { bodyDataToUse = frontIdleFrames[0]; }
+        }
+        currentSpriteData = [...bodyDataToUse];
+        for (let i = 0; i < 3; i++) {
+            const leftPart = currentLeftFoot[i];
+            const rightPart = currentRightFoot[i];
+            currentSpriteData.push(`___${leftPart}_${rightPart}____`);
+        }
+    }
+
+    function assembleBoySpriteData() {
+        const frameIndex = boyIdleAnimationSequence[boyCurrentIdleFrameIndex];
+        currentBoySpriteData = boyIdleFrames[frameIndex];
+    }
+
+    function initializeSunflowers() { /* ... same ... */         sunflowers.length = 0;         const yBase = 200;        sunflowers.push({ x: 30, y: yBase - 10, width: sunflowerDrawWidth, height: sunflowerDrawHeight, currentIdleFrame: 0, idleTimer: Math.floor(Math.random() * sunflowerIdleFrameDelay) });        sunflowers.push({ x: 100, y: yBase - 30, width: sunflowerDrawWidth, height: sunflowerDrawHeight, currentIdleFrame: 0, idleTimer: Math.floor(Math.random() * sunflowerIdleFrameDelay) });        sunflowers.push({ x: canvas.width - sunflowerDrawWidth - 100, y: yBase - 50, width: sunflowerDrawWidth, height: sunflowerDrawHeight, currentIdleFrame: 0, idleTimer: Math.floor(Math.random() * sunflowerIdleFrameDelay) });        sunflowers.push({ x: canvas.width - sunflowerDrawWidth - 30, y: yBase - 0, width: sunflowerDrawWidth, height: sunflowerDrawHeight, currentIdleFrame: 0, idleTimer: Math.floor(Math.random() * sunflowerIdleFrameDelay) });    }
+
+    function initializeCorridor(isPlatformCorridor = false, platformIndex = -1) { /* ... same ... */        cameraX = 0;        if (!isPlatformCorridor) {             corridorExitRect.y = canvas.height - playerDrawHeight - 10;             corridorExitRect.height = playerDrawHeight;             playerWorldX = corridorExitRect.x + corridorExitRect.width + 20;         } else {             playerWorldX = CORRIDOR_LENGTH - playerDrawWidth - 30;             cameraX = playerWorldX - (canvas.width - playerDrawWidth - 30);             cameraX = Math.max(0, Math.min(cameraX, CORRIDOR_LENGTH - canvas.width));         }        playerX = playerWorldX - cameraX;         playerY = canvas.height - playerDrawHeight - 10;         isFacingBack = false;         spriteFacingLeft = isPlatformCorridor;         corridorObjects.length = 0;         const numCrates = isPlatformCorridor ? 2 : 5;         const spacingFactor = CORRIDOR_LENGTH / (numCrates + 1);        for (let i = 0; i < numCrates; i++) {             corridorObjects.push({ type: 'C', x: (i + 1) * spacingFactor - (corridorObjectPixelData.C[0].length * pixelSize / 2) + (Math.random() * 40 - 20), y: canvas.height - (corridorObjectPixelData.C[0].length * pixelSize) - 10, width: corridorObjectPixelData.C[0].length * pixelSize, height: corridorObjectPixelData.C.length * pixelSize });         }        for (let i = 0; i < CORRIDOR_LENGTH / (10 * pixelSize); i++) { if (Math.random() < 0.3) { corridorObjects.push({ type: 'P', x: i * 10 * pixelSize, y: 50, width: pixelSize, height: corridorObjectPixelData.P.length * pixelSize }); } }                if (!isPlatformCorridor) {            corridorLadderRect.x = CORRIDOR_LENGTH - (playerDrawWidth * 1.5) - 10;             corridorLadderRect.y = canvas.height - playerDrawHeight - 10;             corridorLadderRect.height = playerDrawHeight;        }    }
+    function initializeLoft() { /* ... same ... */        playerX = canvas.width / 2 - playerDrawWidth / 2;         playerY = canvas.height - playerDrawHeight - 10;         playerWorldX = playerX;         playerWorldY_Ladder = 0;         isFacingBack = false; spriteFacingLeft = false;        loftLadderDownRect = { x: canvas.width / 2 - ((LADDER_PIXEL_WIDTH * pixelSize + 2 * pixelSize) / 2), y: playerY + playerDrawHeight - (5 * pixelSize), width: (LADDER_PIXEL_WIDTH + 2) * pixelSize, height: 5 * pixelSize };        boyX = canvas.width - boyDrawWidth - 20; // Position boy bottom-right
+        boyY = canvas.height - boyDrawHeight - 10;
+        assembleBoySpriteData(); // Assemble boy's initial sprite
+    }
+    function initializeLadderClimb(comingFromLoft = false, platformY = -1) { /* ... same ... */         if (comingFromLoft) {            playerWorldY_Ladder = LADDER_TOP_Y_FOR_LOFT_TRANSITION + 5;         } else if (platformY !== -1) {             playerWorldY_Ladder = platformY;        } else {             playerWorldY_Ladder = LADDER_HEIGHT - playerDrawHeight - 5;         }        cameraY = Math.max(0, playerWorldY_Ladder - (canvas.height - CAMERA_SCROLL_MARGIN_Y - playerDrawHeight));        cameraY = Math.min(cameraY, LADDER_HEIGHT - canvas.height);        playerX = canvas.width / 2 - playerDrawWidth / 2;         playerWorldX = corridorLadderRect.x + (corridorLadderRect.width / 2) - (playerDrawWidth / 2);         isFacingBack = true;     }
+
+    function initializeGame() { /* ... same ... */         if (currentGameState === GAME_STATE.OUTSIDE_BARN) {            playerX = (canvas.width - playerDrawWidth) / 2; playerY = canvas.height - playerDrawHeight - 10;             playerWorldX = playerX; initializeSunflowers();         } else if (currentGameState === GAME_STATE.INSIDE_BARN_CORRIDOR) {            initializeCorridor();                } else if (currentGameState === GAME_STATE.INSIDE_BARN_PLATFORM_1) {            initializeCorridor(true, 0);        } else if (currentGameState === GAME_STATE.INSIDE_BARN_PLATFORM_2) {            initializeCorridor(true, 1);        } else if (currentGameState === GAME_STATE.INSIDE_BARN_PLATFORM_3) {            initializeCorridor(true, 2);        } else if (currentGameState === GAME_STATE.BARN_LOFT) {            initializeLoft();        } else if (currentGameState === GAME_STATE.CLIMBING_LADDER) {        }        assembleLauraSpriteData();         if (!gameRunning) { gameRunning = true; requestAnimationFrame(gameLoop); }    }
+
+    document.addEventListener('keydown', (event) => { if (gameRunning && keysPressed.hasOwnProperty(event.key)) { event.preventDefault(); keysPressed[event.key] = true; }});
+    document.addEventListener('keyup', (event) => { if (gameRunning && keysPressed.hasOwnProperty(event.key)) { event.preventDefault(); keysPressed[event.key] = false; }});
+
+    function drawGameField() { /* ... same ... */         if (currentGameState === GAME_STATE.OUTSIDE_BARN || currentGameState === GAME_STATE.FADING_TO_CORRIDOR || currentGameState === GAME_STATE.FADING_TO_OUTSIDE || currentGameState === GAME_STATE.FADING_TO_LOFT || currentGameState === GAME_STATE.FADING_TO_PLATFORM_1 || currentGameState === GAME_STATE.FADING_TO_PLATFORM_2 || currentGameState === GAME_STATE.FADING_TO_PLATFORM_3 ) {            ctx.fillStyle = gameFieldColor; ctx.fillRect(0, 0, canvas.width, canvas.height);         } else if (currentGameState === GAME_STATE.INSIDE_BARN_CORRIDOR || currentGameState === GAME_STATE.INSIDE_BARN_PLATFORM_1 || currentGameState === GAME_STATE.INSIDE_BARN_PLATFORM_2 || currentGameState === GAME_STATE.INSIDE_BARN_PLATFORM_3) {            const bgColor = (currentGameState === GAME_STATE.INSIDE_BARN_CORRIDOR) ? corridorColor : PLATFORM_CORRIDOR_COLOR;            ctx.fillStyle = bgColor; ctx.fillRect(0, 0, canvas.width, canvas.height);            for (let i = 0; i < CORRIDOR_LENGTH / (pixelSize * 2); i++) { ctx.fillStyle = (i % 2 === 0) ? '#5A4B41' : '#40302A'; ctx.fillRect(i * pixelSize * 2 - cameraX, 0, pixelSize * 2, canvas.height); }        } else if (currentGameState === GAME_STATE.BARN_LOFT) {            ctx.fillStyle = loftColor; ctx.fillRect(0, 0, canvas.width, canvas.height);        } else if (currentGameState === GAME_STATE.CLIMBING_LADDER) {            ctx.fillStyle = corridorColor;             ctx.fillRect(0, 0, canvas.width, canvas.height);        }    }
+    function drawBarn() { /* ... same ... */         if (!(currentGameState === GAME_STATE.OUTSIDE_BARN || currentGameState === GAME_STATE.FADING_TO_CORRIDOR || currentGameState === GAME_STATE.FADING_TO_OUTSIDE || currentGameState === GAME_STATE.FADING_TO_LOFT || currentGameState === GAME_STATE.FADING_TO_PLATFORM_1 || currentGameState === GAME_STATE.FADING_TO_PLATFORM_2 || currentGameState === GAME_STATE.FADING_TO_PLATFORM_3)) return;        const smoothingEnabledBefore = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;         for (let r = 0; r < barnPixelHeight; r++) {            for (let c = 0; c < barnPixelWidthActual; c++) {                 if (currentBarnData[r] && currentBarnData[r][c]) {                    const pixelChar = currentBarnData[r][c]; const color = barnColors[pixelChar];                    if (color) { ctx.fillStyle = color; ctx.fillRect(barnX + (c * pixelSize), barnY + (r * pixelSize), pixelSize, pixelSize); }                }            }        }        ctx.imageSmoothingEnabled = smoothingEnabledBefore;    }
+    function updateSunflowersAnimation() { /* ... same ... */ sunflowers.forEach(flower => { flower.idleTimer++; if (flower.idleTimer >= sunflowerIdleFrameDelay) { flower.idleTimer = 0; flower.currentIdleFrame = (flower.currentIdleFrame + 1) % sunflowerIdleAnimationSequence.length; } }); }
+    function drawSunflowers() { /* ... same ... */         if (!(currentGameState === GAME_STATE.OUTSIDE_BARN || currentGameState === GAME_STATE.FADING_TO_CORRIDOR || currentGameState === GAME_STATE.FADING_TO_OUTSIDE || currentGameState === GAME_STATE.FADING_TO_LOFT || currentGameState === GAME_STATE.FADING_TO_PLATFORM_1 || currentGameState === GAME_STATE.FADING_TO_PLATFORM_2 || currentGameState === GAME_STATE.FADING_TO_PLATFORM_3)) return;        const smoothingEnabledBefore = ctx.imageSmoothingEnabled;        ctx.imageSmoothingEnabled = false;         sunflowers.forEach(flower => {            const frameIndex = sunflowerIdleAnimationSequence[flower.currentIdleFrame];            const currentSunflowerFrameData = sunflowerIdleFrames[frameIndex];            for (let r = 0; r < sunflowerPixelHeight; r++) {                for (let c = 0; c < sunflowerPixelWidth; c++) {                    if (currentSunflowerFrameData[r] && currentSunflowerFrameData[r][c]) {                        const pixelChar = currentSunflowerFrameData[r][c];                        const color = sunflowerColors[pixelChar];                        if (color) {                            ctx.fillStyle = color;                            ctx.fillRect(flower.x + (c * pixelSize), flower.y + (r * pixelSize), pixelSize, pixelSize);                        }                    }                }            }        });        ctx.imageSmoothingEnabled = smoothingEnabledBefore;    }
+
+    function drawCorridorObjects() { /* ... same ... */         if (!(currentGameState === GAME_STATE.INSIDE_BARN_CORRIDOR || currentGameState.startsWith("INSIDE_BARN_PLATFORM_") || currentGameState === GAME_STATE.FADING_TO_LOFT)) return;        const smoothingEnabledBefore = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;        corridorObjects.forEach(obj => {            const objScreenX = obj.x - cameraX;            if (objScreenX + obj.width > 0 && objScreenX < canvas.width) {                const data = corridorObjectPixelData[obj.type];                for (let r = 0; r < data.length; r++) {                    for (let c = 0; c < data[0].length; c++) {                         if (data[r] && data[r][c]) {                            const pixelChar = data[r][c];                            const color = corridorObjectColors[pixelChar];                            if (color) {                                ctx.fillStyle = color;                                ctx.fillRect( objScreenX + (c * pixelSize), obj.y + (r * pixelSize), pixelSize, pixelSize );                            }                        }                    }                }            }        });        const exitScreenX = corridorExitRect.x - cameraX;        if (currentGameState === GAME_STATE.INSIDE_BARN_CORRIDOR && exitScreenX + corridorExitRect.width > 0 && exitScreenX < canvas.width) {             ctx.fillStyle = "rgba(0,0,0,0.6)";              ctx.fillRect(exitScreenX, corridorExitRect.y, corridorExitRect.width, corridorExitRect.height);         }                        const ladderBaseX = corridorLadderRect.x + (corridorLadderRect.width / 2) - ((LADDER_PIXEL_WIDTH * pixelSize + 2 * pixelSize) / 2);         const ladderScreenX = ladderBaseX - cameraX;        const ladderRungWidth = LADDER_PIXEL_WIDTH * pixelSize;        const ladderVisualBottomY = canvas.height - pixelSize;         const ladderVisualTopY = 0;         if (currentGameState === GAME_STATE.INSIDE_BARN_CORRIDOR && ladderScreenX + ladderRungWidth + (2*pixelSize) > 0 && ladderScreenX - pixelSize < canvas.width) {            ctx.fillStyle = LADDER_SIDE_COLOR;            ctx.fillRect(ladderScreenX - pixelSize, ladderVisualTopY, pixelSize, ladderVisualBottomY - ladderVisualTopY + pixelSize);            ctx.fillRect(ladderScreenX + ladderRungWidth, ladderVisualTopY, pixelSize, ladderVisualBottomY - ladderVisualTopY + pixelSize);            const rungSpacing = pixelSize * 3;             for (let y = ladderVisualBottomY; y >= ladderVisualTopY; y -= rungSpacing) {                ctx.fillStyle = LADDER_RUNG_COLOR;                ctx.fillRect(ladderScreenX, y, ladderRungWidth, pixelSize);            }        } else if (currentGameState.startsWith("INSIDE_BARN_PLATFORM_")) {            const returnLadderVisualX = CORRIDOR_LENGTH - 50 - cameraX;             const returnLadderVisualY = canvas.height / 2 - 50;             if (returnLadderVisualX + 40 > 0 && returnLadderVisualX < canvas.width) {                ctx.fillStyle = "rgba(0,0,0,0.5)";                ctx.fillRect(returnLadderVisualX, returnLadderVisualY, 40, 100);                ctx.fillStyle = "white"; ctx.font = "12px Arial"; ctx.textAlign = "center";                ctx.fillText("Ladder", returnLadderVisualX + 20, returnLadderVisualY + 55);            }        }        ctx.imageSmoothingEnabled = smoothingEnabledBefore;    }
+    function drawLadderScene() { /* ... same ... */         if (!(currentGameState === GAME_STATE.CLIMBING_LADDER || currentGameState === GAME_STATE.FADING_TO_LOFT || currentGameState.startsWith("FADING_TO_PLATFORM_"))) return;        const smoothingEnabledBefore = ctx.imageSmoothingEnabled;        ctx.imageSmoothingEnabled = false;        for (let y = 0; y < canvas.height; y += pixelSize * 2) {            for (let x_pos = 0; x_pos < canvas.width; x_pos += pixelSize * 4) {                ctx.fillStyle = ( ( (y / (pixelSize*2)) % 2 === 0) ? '#5A4B41' : '#40302A');                ctx.fillRect(x_pos, y, pixelSize * 4, pixelSize * 2);            }        }                const ladderScreenX = canvas.width / 2 - (LADDER_PIXEL_WIDTH * pixelSize) / 2;         const rungSpacing = pixelSize * 3;         for (let y = 0; y < LADDER_HEIGHT; y += rungSpacing) {            const rungScreenY = y - cameraY;            if (rungScreenY + pixelSize > 0 && rungScreenY < canvas.height) {                 ctx.fillStyle = LADDER_SIDE_COLOR;                ctx.fillRect(ladderScreenX - pixelSize, rungScreenY - pixelSize, pixelSize, pixelSize * 3);                ctx.fillRect(ladderScreenX + LADDER_PIXEL_WIDTH * pixelSize, rungScreenY - pixelSize, pixelSize, pixelSize * 3);                ctx.fillStyle = LADDER_RUNG_COLOR;                ctx.fillRect(ladderScreenX, rungScreenY, LADDER_PIXEL_WIDTH * pixelSize, pixelSize);            }        }        platformLevels.forEach(platform => {            const platformScreenY = platform.worldY - cameraY;            if (platformScreenY + platform.platformVisualHeight > 0 && platformScreenY < canvas.height) {                ctx.fillStyle = barnColors.W;                 ctx.fillRect(0, platformScreenY, ladderScreenX - pixelSize, platform.platformVisualHeight);            }        });        ctx.imageSmoothingEnabled = smoothingEnabledBefore;    }
+
+    function drawBoy() {
+        if (currentGameState !== GAME_STATE.BARN_LOFT) return;
+        const smoothingEnabledBefore = ctx.imageSmoothingEnabled;
+        ctx.imageSmoothingEnabled = false;
+
+        const frameData = currentBoySpriteData;
+        let boyDrawY = boyY;
+        // The bobbing is inherent in the frame data (boy_idle_bob_up is shorter)
+        // If boy_idle_bob_up is active, we need to draw it one pixelSize higher to make it look like it bobbed up
+        if (boyIdleFrames[boyCurrentIdleFrameIndex] === boy_idle_bob_up) {
+             boyDrawY = boyY - pixelSize; // Draw it one "pixel unit" higher
+        }
+
+
+        for (let r = 0; r < boyPixelArtHeight; r++) {
+            // Make sure not to draw past the actual data for the bob_up frame
+            if (frameData === boy_idle_bob_up && r === boyPixelArtHeight -1) continue;
+
+            for (let c = 0; c < boyPixelArtWidth; c++) {
+                if (frameData[r] && frameData[r][c]) {
+                    const pixelChar = frameData[r][c];
+                    const color = spriteColors[pixelChar];
+                    if (color) {
+                        ctx.fillStyle = color;
+                        ctx.fillRect(boyX + (c * pixelSize), boyDrawY + (r * pixelSize), pixelSize, pixelSize);
+                    }
+                }
+            }
+        }
+        ctx.imageSmoothingEnabled = smoothingEnabledBefore;
+    }
+
+    function drawLoftObjects() {
+        if (currentGameState !== GAME_STATE.BARN_LOFT && currentGameState !== GAME_STATE.FADING_TO_LOFT && currentGameState !== GAME_STATE.FADING_FROM_PLATFORM_TO_LADDER) return;
+        const smoothingEnabledBefore = ctx.imageSmoothingEnabled;
+        ctx.imageSmoothingEnabled = false;
+
+        for (let r = 0; r < windowPixelHeight; r++) {
+            for (let c = 0; c < windowPixelWidth; c++) {
+                if (windowPixelData[r] && windowPixelData[r][c]) {
+                    const pixelChar = windowPixelData[r][c];
+                    let colorToUse = null;
+                    if (pixelChar === 'G') colorToUse = windowColors['G'];
+                    else if (pixelChar === 'F') colorToUse = windowColors['F'];
+                    else if (pixelChar === 'H' && windowColors['H']) colorToUse = windowColors['H'];
+
+                    if (colorToUse) {
+                        ctx.fillStyle = colorToUse;
+                        ctx.fillRect(windowX + (c * pixelSize), windowY + (r * pixelSize), pixelSize, pixelSize);
+                    }
+                }
+            }
+        }
+
+        const ladderTopScreenX = loftLadderDownRect.x;        const ladderTopScreenY = loftLadderDownRect.y;        const ladderRungWidth = LADDER_PIXEL_WIDTH * pixelSize;        ctx.fillStyle = "rgba(0,0,0,0.7)";         ctx.fillRect(ladderTopScreenX, ladderTopScreenY, ladderRungWidth, loftLadderDownRect.height);        ctx.fillStyle = LADDER_SIDE_COLOR;         ctx.fillRect(ladderTopScreenX - pixelSize, ladderTopScreenY, pixelSize, loftLadderDownRect.height);        ctx.fillRect(ladderTopScreenX + ladderRungWidth, ladderTopScreenY, pixelSize, loftLadderDownRect.height);                const rungSpacing = pixelSize * 3;        for (let y_pos = 0; y_pos < loftLadderDownRect.height; y_pos += rungSpacing) {            ctx.fillStyle = LADDER_RUNG_COLOR;            ctx.fillRect(ladderTopScreenX, ladderTopScreenY + y_pos, ladderRungWidth, pixelSize);        }
+        drawBoy();
+        ctx.imageSmoothingEnabled = smoothingEnabledBefore;
+    }
+
+    function drawPlayer() { /* ... same ... */         if (currentGameState === GAME_STATE.START_MENU) return;        const smoothingEnabledBefore = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;         ctx.save();         let drawAtX = playerX; let drawAtY = playerY;         if (currentGameState === GAME_STATE.CLIMBING_LADDER) {            drawAtX = canvas.width / 2 - playerDrawWidth / 2;            drawAtY = playerWorldY_Ladder - cameraY;        }                if (spriteFacingLeft && !isFacingBack && currentGameState !== GAME_STATE.CLIMBING_LADDER) {             ctx.translate(playerX + playerDrawWidth, playerY); ctx.scale(-1, 1);             drawAtX = 0;             drawAtY = (currentGameState === GAME_STATE.CLIMBING_LADDER) ? playerWorldY_Ladder - cameraY : 0;          } else if (currentGameState === GAME_STATE.CLIMBING_LADDER) {        }                for (let r = 0; r < playerSpritePixelHeight; r++) {             for (let c = 0; c < playerSpritePixelWidth; c++) {                 if (currentSpriteData[r] && currentSpriteData[r][c]) {                     const pixelChar = currentSpriteData[r][c]; const color = spriteColors[pixelChar];                    if (color) { ctx.fillStyle = color; ctx.fillRect(drawAtX + (c * pixelSize), drawAtY + (r * pixelSize), pixelSize, pixelSize); }                }            }        }        ctx.restore();         ctx.imageSmoothingEnabled = smoothingEnabledBefore;     }
+    function drawFade() { /* ... same ... */         if (fadeAlpha > 0) {            ctx.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`;            ctx.fillRect(0, 0, canvas.width, canvas.height);        }    }
+
+    function updateBoyAnimation() {
+        if (currentGameState !== GAME_STATE.BARN_LOFT) return;
+        boyIdleTimer++;
+        if (boyIdleTimer >= boyIdleFrameDelay) {
+            boyIdleTimer = 0;
+            boyCurrentIdleFrameIndex = (boyCurrentIdleFrameIndex + 1) % boyIdleAnimationSequence.length;
+            assembleBoySpriteData();
+        }
+    }
+
+    function updatePlayerPosition() {
+        // Handle Fading States First
+        if (currentGameState === GAME_STATE.FADING_TO_CORRIDOR) { previousStateBeforeFade = GAME_STATE.OUTSIDE_BARN; fadeAlpha += fadeSpeed; if (fadeAlpha >= 1) { fadeAlpha = 1; currentGameState = GAME_STATE.INSIDE_BARN_CORRIDOR; initializeCorridor(); fadeAlpha = 0; previousStateBeforeFade = null;} return; }
+        if (currentGameState === GAME_STATE.FADING_TO_OUTSIDE) { previousStateBeforeFade = GAME_STATE.INSIDE_BARN_CORRIDOR; fadeAlpha += fadeSpeed; if (fadeAlpha >= 1) { fadeAlpha = 1; currentGameState = GAME_STATE.OUTSIDE_BARN; playerX = barnDoorRect.x + (barnDoorRect.width / 2) - (playerDrawWidth / 2); playerY = barnDoorRect.y + barnDoorRect.height - playerDrawHeight - 15; playerWorldX = playerX; isFacingBack = false; spriteFacingLeft = false; fadeAlpha = 0; previousStateBeforeFade = null;} return; }
+        if (currentGameState === GAME_STATE.FADING_TO_LOFT) { previousStateBeforeFade = GAME_STATE.CLIMBING_LADDER; fadeAlpha += fadeSpeed; if (fadeAlpha >= 1) { fadeAlpha = 1; currentGameState = GAME_STATE.BARN_LOFT; initializeLoft(); fadeAlpha = 0; previousStateBeforeFade = null;} return; }
+        if (currentGameState === GAME_STATE.FADING_TO_PLATFORM_1) { previousStateBeforeFade = GAME_STATE.CLIMBING_LADDER; fadeAlpha += fadeSpeed; if (fadeAlpha >= 1) { fadeAlpha = 1; currentGameState = GAME_STATE.INSIDE_BARN_PLATFORM_1; initializeCorridor(true, 0); fadeAlpha = 0; previousStateBeforeFade = null;} return; }
+        else if (currentGameState === GAME_STATE.FADING_TO_PLATFORM_2) { previousStateBeforeFade = GAME_STATE.CLIMBING_LADDER; fadeAlpha += fadeSpeed; if (fadeAlpha >= 1) { fadeAlpha = 1; currentGameState = GAME_STATE.INSIDE_BARN_PLATFORM_2; initializeCorridor(true, 1); fadeAlpha = 0; previousStateBeforeFade = null;} return; }
+        else if (currentGameState === GAME_STATE.FADING_TO_PLATFORM_3) { previousStateBeforeFade = GAME_STATE.CLIMBING_LADDER; fadeAlpha += fadeSpeed; if (fadeAlpha >= 1) { fadeAlpha = 1; currentGameState = GAME_STATE.INSIDE_BARN_PLATFORM_3; initializeCorridor(true, 2); fadeAlpha = 0; previousStateBeforeFade = null;} return; }
+        else if (currentGameState === GAME_STATE.FADING_FROM_PLATFORM_TO_LADDER) { /*previousStateBeforeFade = currentGameState.replace("FADING_FROM_", "INSIDE_"); */ fadeAlpha += fadeSpeed; if (fadeAlpha >= 1) { fadeAlpha = 1; currentGameState = GAME_STATE.CLIMBING_LADDER; initializeLadderClimb(false, playerWorldY_Ladder); fadeAlpha = 0; previousStateBeforeFade = null;} return; }
+
+
+        if (currentGameState !== GAME_STATE.OUTSIDE_BARN && currentGameState !== GAME_STATE.INSIDE_BARN_CORRIDOR &&
+            currentGameState !== GAME_STATE.BARN_LOFT && currentGameState !== GAME_STATE.CLIMBING_LADDER &&
+            !currentGameState.startsWith("INSIDE_BARN_PLATFORM_")
+            ) return;
+
+        const oldIsMoving = isMoving; const previousFacingBack = isFacingBack;
+        isMoving = false;
+        let nextPlayerWorldX = playerWorldX;
+        let nextPlayerScreenX = playerX;
+        let nextY = playerY;
+        let nextPlayerWorldY_Ladder = playerWorldY_Ladder;
+
+        // --- Input Handling ---
+        if (keysPressed.w || keysPressed.ArrowUp) {
+            if (currentGameState === GAME_STATE.OUTSIDE_BARN) { isFacingBack = true; const playerRectForDoor = { x: playerX, y: playerY - moveSpeed, width: playerDrawWidth, height: playerDrawHeight }; if (checkCollision(playerRectForDoor, barnDoorRect)) { previousStateBeforeFade = currentGameState; currentGameState = GAME_STATE.FADING_TO_CORRIDOR; fadeAlpha = 0; isMoving = false; return; } nextY -= moveSpeed; isMoving = true;
+            } else if (currentGameState === GAME_STATE.INSIDE_BARN_CORRIDOR) { const playerRectForLadder = {x: playerWorldX, y: playerY, width: playerDrawWidth, height: playerDrawHeight}; if (checkCollision(playerRectForLadder, corridorLadderRect)) { previousStateBeforeFade = currentGameState; currentGameState = GAME_STATE.CLIMBING_LADDER; initializeLadderClimb(); isMoving = true; isFacingBack = true; return; }
+            } else if (currentGameState === GAME_STATE.CLIMBING_LADDER) { nextPlayerWorldY_Ladder -= climbSpeed; isMoving = true; isFacingBack = true; if (nextPlayerWorldY_Ladder <= LADDER_TOP_Y_FOR_LOFT_TRANSITION) { previousStateBeforeFade = currentGameState; currentGameState = GAME_STATE.FADING_TO_LOFT; fadeAlpha = 0; isMoving = false; return; } }
+        }
+        if (keysPressed.s || keysPressed.ArrowDown) {
+            if (currentGameState === GAME_STATE.CLIMBING_LADDER) { if (playerWorldY_Ladder + playerDrawHeight < LADDER_HEIGHT - climbSpeed) { nextPlayerWorldY_Ladder += climbSpeed; isMoving = true; isFacingBack = true; } else { previousStateBeforeFade = currentGameState; currentGameState = GAME_STATE.INSIDE_BARN_CORRIDOR; playerWorldX = corridorLadderRect.x + corridorLadderRect.width / 2 - playerDrawWidth / 2; playerY = corridorLadderRect.y + corridorLadderRect.height - playerDrawHeight; cameraX = Math.max(0, Math.min(playerWorldX - CAMERA_SCROLL_MARGIN_X, CORRIDOR_LENGTH - canvas.width)); playerX = playerWorldX - cameraX; isFacingBack = true; isMoving = false; return; }
+            } else if (currentGameState === GAME_STATE.BARN_LOFT) { const playerRectForLadderDown = {x: playerX, y: playerY + moveSpeed, width: playerDrawWidth, height: playerDrawHeight}; if (checkCollision(playerRectForLadderDown, loftLadderDownRect)) { previousStateBeforeFade = currentGameState; currentGameState = GAME_STATE.CLIMBING_LADDER; initializeLadderClimb(true); isMoving = true; isFacingBack = true; return; } nextY += moveSpeed; isMoving = true;
+            } else if (!currentGameState.startsWith("INSIDE_BARN_PLATFORM_")) { nextY += moveSpeed; isMoving = true; if(currentGameState === GAME_STATE.OUTSIDE_BARN) isFacingBack = false; }
+        }
+        if (currentGameState !== GAME_STATE.CLIMBING_LADDER) {
+            if (keysPressed.a || keysPressed.ArrowLeft) {
+                nextPlayerWorldX -= moveSpeed; isMoving = true;
+                if (currentGameState === GAME_STATE.INSIDE_BARN_CORRIDOR || currentGameState.startsWith("INSIDE_BARN_PLATFORM") || !isFacingBack) spriteFacingLeft = true;
+                if (currentGameState === GAME_STATE.INSIDE_BARN_CORRIDOR) { const playerNextWorldRect = {x: nextPlayerWorldX, y:playerY, width:playerDrawWidth, height:playerDrawHeight}; if (checkCollision(playerNextWorldRect, corridorExitRect)) { previousStateBeforeFade = currentGameState; currentGameState = GAME_STATE.FADING_TO_OUTSIDE; fadeAlpha = 0; isMoving = false; return; } }
+            }
+            if (keysPressed.d || keysPressed.ArrowRight) {
+                nextPlayerWorldX += moveSpeed; isMoving = true;
+                if (currentGameState === GAME_STATE.INSIDE_BARN_CORRIDOR || currentGameState.startsWith("INSIDE_BARN_PLATFORM") || !isFacingBack) spriteFacingLeft = false;
+                 if (currentGameState.startsWith("INSIDE_BARN_PLATFORM_")) {
+                    const playerNextWorldRect = {x: nextPlayerWorldX, y:playerY, width:playerDrawWidth, height:playerDrawHeight};
+                    let platformIndex = 0;
+                    if(currentGameState === GAME_STATE.INSIDE_BARN_PLATFORM_1) platformIndex = 0;
+                    if(currentGameState === GAME_STATE.INSIDE_BARN_PLATFORM_2) platformIndex = 1;
+                    if(currentGameState === GAME_STATE.INSIDE_BARN_PLATFORM_3) platformIndex = 2;
+
+                    if(checkCollision(playerNextWorldRect, platformLevels[platformIndex].returnLadderRect)){
+                        previousStateBeforeFade = currentGameState;
+                        currentGameState = GAME_STATE.FADING_FROM_PLATFORM_TO_LADDER;
+                        playerWorldY_Ladder = platformLevels[platformIndex].worldY;
+                        fadeAlpha = 0; isMoving = false; return;
+                    }
+                }
+            }
+        } else {
+             if (keysPressed.a || keysPressed.ArrowLeft) {
+                for(let i=0; i < platformLevels.length; i++){
+                    const platform = platformLevels[i];
+                    if (Math.abs(playerWorldY_Ladder - platform.worldY) < playerDrawHeight * 0.75) {
+                        previousStateBeforeFade = currentGameState;
+                        currentGameState = platform.enterState;
+                        fadeAlpha = 0; isMoving = false; return;
+                    }
+                }
+            }
+        }
+
+        const playerRect = { x: 0, y: 0, width: playerDrawWidth, height: playerDrawHeight };
+        if (currentGameState === GAME_STATE.OUTSIDE_BARN) { nextPlayerScreenX = nextPlayerWorldX; playerRect.x = nextPlayerScreenX; playerRect.y = playerY; let canMoveX = true; for (const flower of sunflowers) { if (checkCollision(playerRect, flower)) { canMoveX = false; break; } } if (canMoveX) playerX = nextPlayerScreenX; playerRect.x = playerX; playerRect.y = nextY; let canMoveY = true; for (const flower of sunflowers) { if (checkCollision(playerRect, flower)) { canMoveY = false; break; } } if (nextY < playerY && checkCollision(playerRect, barnSolidRect)) { canMoveY = false; } if (canMoveY) playerY = nextY; playerWorldX = playerX;
+        } else if (currentGameState === GAME_STATE.INSIDE_BARN_CORRIDOR || currentGameState.startsWith("INSIDE_BARN_PLATFORM_")) {
+            playerWorldX = nextPlayerWorldX;
+            playerY = canvas.height - playerDrawHeight - 10;
+
+            const targetScreenX = playerWorldX - cameraX;
+            if (targetScreenX < CAMERA_SCROLL_MARGIN_X) cameraX = playerWorldX - CAMERA_SCROLL_MARGIN_X;
+            else if (targetScreenX > canvas.width - CAMERA_SCROLL_MARGIN_X - playerDrawWidth) cameraX = playerWorldX - (canvas.width - CAMERA_SCROLL_MARGIN_X - playerDrawWidth);
+            cameraX = Math.max(0, Math.min(cameraX, CORRIDOR_LENGTH - canvas.width));
+            playerX = playerWorldX - cameraX;
+        } else if (currentGameState === GAME_STATE.CLIMBING_LADDER) {
+            playerWorldY_Ladder = nextPlayerWorldY_Ladder;
+            playerWorldY_Ladder = Math.max(0, Math.min(playerWorldY_Ladder, LADDER_HEIGHT - playerDrawHeight));
+            const targetScreenY = playerWorldY_Ladder - cameraY;
+            if (targetScreenY < CAMERA_SCROLL_MARGIN_Y) cameraY = playerWorldY_Ladder - CAMERA_SCROLL_MARGIN_Y;
+            else if (targetScreenY > canvas.height - CAMERA_SCROLL_MARGIN_Y - playerDrawHeight) cameraY = playerWorldY_Ladder - (canvas.height - CAMERA_SCROLL_MARGIN_Y - playerDrawHeight);
+            cameraY = Math.max(0, Math.min(cameraY, LADDER_HEIGHT - canvas.height));
+            playerY = playerWorldY_Ladder - cameraY;
+            playerX = canvas.width / 2 - playerDrawWidth / 2;
+        } else if (currentGameState === GAME_STATE.BARN_LOFT) {
+            playerWorldX = nextPlayerWorldX; playerX = playerWorldX; playerY = nextY;
+        }
+
+        // Canvas boundary checks
+        if (playerX < 0) playerX = 0;
+        if (playerY < 0) playerY = 0;
+        if (playerX + playerDrawWidth > canvas.width) playerX = canvas.width - playerDrawWidth;
+        if (playerY + playerDrawHeight > canvas.height) playerY = canvas.height - playerDrawHeight;
+        // World boundary checks
+        if (currentGameState === GAME_STATE.INSIDE_BARN_CORRIDOR || currentGameState.startsWith("INSIDE_BARN_PLATFORM_") || currentGameState === GAME_STATE.BARN_LOFT) {
+            if (playerWorldX < 0) playerWorldX = 0;
+            const currentActiveWorldLength = (currentGameState === GAME_STATE.BARN_LOFT) ? canvas.width : CORRIDOR_LENGTH;
+            if (playerWorldX + playerDrawWidth > currentActiveWorldLength) playerWorldX = currentActiveWorldLength - playerDrawWidth;
+            if (currentGameState.startsWith("INSIDE_BARN_PLATFORM_") || currentGameState === GAME_STATE.INSIDE_BARN_CORRIDOR) {
+                 playerX = playerWorldX - cameraX;
+            } else if (currentGameState === GAME_STATE.BARN_LOFT) {
+                playerX = playerWorldX;
+            }
+        }
+
+        // Animation logic
+        if (isMoving) { /* ... same ... */ timeSinceLastMove = 0; idleTimer = 0; currentIdleFrameIndexInSequence = 0; walkAnimationTimer++; if (walkAnimationTimer >= walkAnimationDelay) { walkAnimationTimer = 0; currentWalkCycleStep = (currentWalkCycleStep + 1) % 2; } let leadingFootIsLeft = !spriteFacingLeft; if (currentGameState === GAME_STATE.CLIMBING_LADDER) { leadingFootIsLeft = true; } if (currentWalkCycleStep === 0) { currentLeftFoot = leadingFootIsLeft ? footStates.short : footStates.long; currentRightFoot = leadingFootIsLeft ? footStates.long : footStates.short; } else { currentLeftFoot = leadingFootIsLeft ? footStates.long : footStates.short; currentRightFoot = leadingFootIsLeft ? footStates.short : footStates.long; } if (currentGameState === GAME_STATE.CLIMBING_LADDER) { isFacingBack = true; }
+        } else { /* ... same ... */ timeSinceLastMove++; walkAnimationTimer = 0; currentWalkCycleStep = 0; currentLeftFoot = footStates.normal; currentRightFoot = footStates.normal; if (timeSinceLastMove >= IDLE_ANIMATION_START_THRESHOLD) { idleTimer++; if (idleTimer >= idleFrameDelay) { idleTimer = 0; currentIdleFrameIndexInSequence = (currentIdleFrameIndexInSequence + 1) % idleAnimationSequence.length; } } else { idleTimer = 0; currentIdleFrameIndexInSequence = 0; } }
+        assembleLauraSpriteData(); // Changed from assembleCurrentSpriteData to be specific
+    }
+
+    function gameLoop() {
+        if (!gameRunning) return;
+        updatePlayerPosition();
+        if (currentGameState === GAME_STATE.OUTSIDE_BARN) updateSunflowersAnimation();
+        if (currentGameState === GAME_STATE.BARN_LOFT) updateBoyAnimation();
+
+        drawGameField();
+
+        if (currentGameState === GAME_STATE.OUTSIDE_BARN ||
+            currentGameState === GAME_STATE.FADING_TO_CORRIDOR ||
+            currentGameState === GAME_STATE.FADING_TO_OUTSIDE) {
+            drawBarn();
+            drawSunflowers();
+        } else if (currentGameState === GAME_STATE.INSIDE_BARN_CORRIDOR ||
+                   currentGameState.startsWith("INSIDE_BARN_PLATFORM_") ||
+                   currentGameState === GAME_STATE.FADING_FROM_PLATFORM_TO_LADDER) {
+            drawCorridorObjects();
+        } else if (currentGameState === GAME_STATE.CLIMBING_LADDER ||
+                   currentGameState.startsWith("FADING_TO_PLATFORM_") ||
+                   currentGameState === GAME_STATE.FADING_TO_LOFT ) {
+            drawLadderScene();
+        } else if (currentGameState === GAME_STATE.BARN_LOFT) {
+            drawLoftObjects();
+        }
+
+        drawPlayer();
+        if (currentGameState.startsWith("FADING_TO_") || currentGameState === GAME_STATE.FADING_FROM_PLATFORM_TO_LADDER) {
+            drawFade();
+        }
+        requestAnimationFrame(gameLoop);
+    }
+
+    startGameButton.addEventListener('click', () => {
+        startMenu.style.display = 'none';
+        canvas.style.display = 'block';
+        instructionsDiv.style.display = 'block';
+        currentGameState = GAME_STATE.OUTSIDE_BARN;
+        initializeGame();
+    });
+
+</script>
+</body>
+</html>
