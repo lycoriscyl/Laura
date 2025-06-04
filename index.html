@@ -67,12 +67,26 @@
     Use <strong>W, A, S, D</strong> or <strong>Arrow Keys</strong> to move the character.
 </div>
 
+<div id="touchControls" style="position: fixed; bottom: 20px; left: 20px; z-index: 20; display: none;">
+    <div id="touchUp" style="width: 50px; height: 50px; background-color: grey; margin-bottom: 5px; text-align: center; line-height: 50px; border-radius: 5px; opacity: 0.7;">U</div>
+    <div style="display: flex;">
+      <div id="touchLeft" style="width: 50px; height: 50px; background-color: grey; margin-right: 5px; text-align: center; line-height: 50px; border-radius: 5px; opacity: 0.7;">L</div>
+      <div id="touchDown" style="width: 50px; height: 50px; background-color: grey; margin-right: 5px; text-align: center; line-height: 50px; border-radius: 5px; opacity: 0.7;">D</div>
+      <div id="touchRight" style="width: 50px; height: 50px; background-color: grey; text-align: center; line-height: 50px; border-radius: 5px; opacity: 0.7;">R</div>
+    </div>
+</div>
+
 <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const startMenu = document.getElementById('startMenu');
     const startGameButton = document.getElementById('startGameButton');
     const instructionsDiv = document.getElementById('instructionsDiv');
+    const touchControlsDiv = document.getElementById('touchControls');
+    const touchUpButton = document.getElementById('touchUp');
+    const touchDownButton = document.getElementById('touchDown');
+    const touchLeftButton = document.getElementById('touchLeft');
+    const touchRightButton = document.getElementById('touchRight');
 
     const GAME_STATE = {
         START_MENU: 'start_menu', OUTSIDE_BARN: 'outside_barn',
@@ -539,9 +553,48 @@
         startMenu.style.display = 'none';
         canvas.style.display = 'block';
         instructionsDiv.style.display = 'block';
+        touchControlsDiv.style.display = 'block'; // Show touch controls when game starts
         currentGameState = GAME_STATE.OUTSIDE_BARN;
         initializeGame();
     });
+
+    // Touch Controls Event Listeners
+    function handleTouchStart(event) {
+        event.preventDefault();
+        const targetId = event.target.id;
+        if (targetId === 'touchUp') keysPressed.w = true;
+        else if (targetId === 'touchDown') keysPressed.s = true;
+        else if (targetId === 'touchLeft') keysPressed.a = true;
+        else if (targetId === 'touchRight') keysPressed.d = true;
+    }
+
+    function handleTouchEnd(event) {
+        event.preventDefault();
+        // Iterate over all touches that ended and release corresponding keys
+        for (let i = 0; i < event.changedTouches.length; i++) {
+            const touch = event.changedTouches[i];
+            const targetId = touch.target.id; // Get id from the target of the touch
+            if (targetId === 'touchUp') keysPressed.w = false;
+            else if (targetId === 'touchDown') keysPressed.s = false;
+            else if (targetId === 'touchLeft') keysPressed.a = false;
+            else if (targetId === 'touchRight') keysPressed.d = false;
+        }
+    }
+
+    // Prevent scrolling and double-tap zoom on touch controls
+    touchControlsDiv.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+    touchControlsDiv.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+
+
+    touchUpButton.addEventListener('touchstart', handleTouchStart, { passive: false });
+    touchDownButton.addEventListener('touchstart', handleTouchStart, { passive: false });
+    touchLeftButton.addEventListener('touchstart', handleTouchStart, { passive: false });
+    touchRightButton.addEventListener('touchstart', handleTouchStart, { passive: false });
+
+    touchUpButton.addEventListener('touchend', handleTouchEnd);
+    touchDownButton.addEventListener('touchend', handleTouchEnd);
+    touchLeftButton.addEventListener('touchend', handleTouchEnd);
+    touchRightButton.addEventListener('touchend', handleTouchEnd);
 
 </script>
 </body>
