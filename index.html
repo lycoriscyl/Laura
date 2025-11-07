@@ -200,7 +200,8 @@
     const platformLevels = [
         { worldY: Math.floor(LADDER_HEIGHT * PLATFORM_Y_SPACING_FACTOR), enterState: GAME_STATE.FADING_TO_PLATFORM_1, sceneState: GAME_STATE.INSIDE_BARN_PLATFORM_1, platformVisualHeight: 3 * pixelSize, returnLadderRect: { x: CORRIDOR_LENGTH - 60, y:0, width: 60, height: canvas.height} },
         { worldY: Math.floor(LADDER_HEIGHT * (PLATFORM_Y_SPACING_FACTOR * 2)), enterState: GAME_STATE.FADING_TO_PLATFORM_2, sceneState: GAME_STATE.INSIDE_BARN_PLATFORM_2, platformVisualHeight: 3 * pixelSize, returnLadderRect: { x: CORRIDOR_LENGTH - 60, y:0, width: 60, height: canvas.height} },
-        { worldY: Math.floor(LADDER_HEIGHT * (PLATFORM_Y_SPACING_FACTOR * 3)), enterState: GAME_STATE.FADING_TO_PLATFORM_3, sceneState: GAME_STATE.INSIDE_BARN_PLATFORM_3, platformVisualHeight: 3 * pixelSize, returnLadderRect: { x: CORRIDOR_LENGTH - 60, y:0, width: 60, height: canvas.height} }
+        { worldY: Math.floor(LADDER_HEIGHT * (PLATFORM_Y_SPACING_FACTOR * 3)), enterState: GAME_STATE.FADING_TO_PLATFORM_3, sceneState: GAME_STATE.INSIDE_BARN_PLATFORM_3, platformVisualHeight: 3 * pixelSize, returnLadderRect: { x: CORRIDOR_LENGTH - 60, y:0, width: 60, height: canvas.height} },
+                { worldY: Math.floor(LADDER_HEIGHT * (PLATFORM_Y_SPACING_FACTOR * 4)), enterState: GAME_STATE.FADING_TO_PLATFORM_4, sceneState: GAME_STATE.INSIDE_BARN_PLATFORM_4, platformVisualHeight: 3 * pixelSize, returnLadderRect: { x: CORRIDOR_LENGTH - 60, y:0, width: 60, height: canvas.height} }
     ];
     const PLATFORM_CORRIDOR_COLOR = '#504038';
 
@@ -408,6 +409,7 @@
         if (currentGameState === GAME_STATE.FADING_TO_PLATFORM_1) { previousStateBeforeFade = GAME_STATE.CLIMBING_LADDER; fadeAlpha += fadeSpeed; if (fadeAlpha >= 1) { fadeAlpha = 1; currentGameState = GAME_STATE.INSIDE_BARN_PLATFORM_1; initializeCorridor(true, 0); fadeAlpha = 0; previousStateBeforeFade = null;} return; }
         else if (currentGameState === GAME_STATE.FADING_TO_PLATFORM_2) { previousStateBeforeFade = GAME_STATE.CLIMBING_LADDER; fadeAlpha += fadeSpeed; if (fadeAlpha >= 1) { fadeAlpha = 1; currentGameState = GAME_STATE.INSIDE_BARN_PLATFORM_2; initializeCorridor(true, 1); fadeAlpha = 0; previousStateBeforeFade = null;} return; }
         else if (currentGameState === GAME_STATE.FADING_TO_PLATFORM_3) { previousStateBeforeFade = GAME_STATE.CLIMBING_LADDER; fadeAlpha += fadeSpeed; if (fadeAlpha >= 1) { fadeAlpha = 1; currentGameState = GAME_STATE.INSIDE_BARN_PLATFORM_3; initializeCorridor(true, 2); fadeAlpha = 0; previousStateBeforeFade = null;} return; }
+                else if (currentGameState === GAME_STATE.FADING_TO_PLATFORM_4) { previousStateBeforeFade = GAME_STATE.CLIMBING_LADDER; fadeAlpha += fadeSpeed; if (fadeAlpha >= 1) { fadeAlpha = 1; currentGameState = GAME_STATE.INSIDE_BARN_PLATFORM_4; initializeCorridor(true, 3); fadeAlpha = 0; previousStateBeforeFade = null;} return; }
         else if (currentGameState === GAME_STATE.FADING_FROM_PLATFORM_TO_LADDER) { /*previousStateBeforeFade = currentGameState.replace("FADING_FROM_", "INSIDE_"); */ fadeAlpha += fadeSpeed; if (fadeAlpha >= 1) { fadeAlpha = 1; currentGameState = GAME_STATE.CLIMBING_LADDER; initializeLadderClimb(false, playerWorldY_Ladder); fadeAlpha = 0; previousStateBeforeFade = null;} return; }
 
 
