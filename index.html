@@ -451,6 +451,7 @@
                     if(currentGameState === GAME_STATE.INSIDE_BARN_PLATFORM_1) platformIndex = 0;
                     if(currentGameState === GAME_STATE.INSIDE_BARN_PLATFORM_2) platformIndex = 1;
                     if(currentGameState === GAME_STATE.INSIDE_BARN_PLATFORM_3) platformIndex = 2;
+                                                     if(currentGameState === GAME_STATE.INSIDE_BARN_PLATFORM_4) platformIndex = 3;
 
                     if(checkCollision(playerNextWorldRect, platformLevels[platformIndex].returnLadderRect)){
                         previousStateBeforeFade = currentGameState;
